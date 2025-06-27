@@ -1,151 +1,143 @@
--- ========================================
--- Cognizant Weekly Assessment
--- Exercise 3: Stored Procedures
--- Name: [Your Name]
--- Date: [DD-MMM-YYYY]
--- ========================================
+SET SERVEROUTPUT ON;
 
--- ===============================
--- SCENARIO 1: Monthly Interest for Savings Accounts
--- ===============================
-
--- Drop table if exists
-BEGIN
-  EXECUTE IMMEDIATE 'DROP TABLE SAVINGS_ACCOUNTS';
-EXCEPTION
-  WHEN OTHERS THEN NULL;
-END;
+BEGIN EXECUTE IMMEDIATE 'DROP TABLE Transactions CASCADE CONSTRAINTS'; EXCEPTION WHEN OTHERS THEN NULL; END;
+/
+BEGIN EXECUTE IMMEDIATE 'DROP TABLE Accounts CASCADE CONSTRAINTS'; EXCEPTION WHEN OTHERS THEN NULL; END;
+/
+BEGIN EXECUTE IMMEDIATE 'DROP TABLE Loans CASCADE CONSTRAINTS'; EXCEPTION WHEN OTHERS THEN NULL; END;
+/
+BEGIN EXECUTE IMMEDIATE 'DROP TABLE Customers CASCADE CONSTRAINTS'; EXCEPTION WHEN OTHERS THEN NULL; END;
+/
+BEGIN EXECUTE IMMEDIATE 'DROP TABLE Employees CASCADE CONSTRAINTS'; EXCEPTION WHEN OTHERS THEN NULL; END;
 /
 
--- Create table
-CREATE TABLE SAVINGS_ACCOUNTS (
-  AccountID   NUMBER PRIMARY KEY,
-  CustomerID  NUMBER,
-  Balance     NUMBER
+CREATE TABLE Customers (
+  CustomerID NUMBER PRIMARY KEY,
+  Name VARCHAR2(100),
+  DOB DATE,
+  Balance NUMBER,
+  LastModified DATE
 );
 
--- Insert sample data
-INSERT INTO SAVINGS_ACCOUNTS VALUES (201, 1, 10000);
-INSERT INTO SAVINGS_ACCOUNTS VALUES (202, 2, 5000);
-INSERT INTO SAVINGS_ACCOUNTS VALUES (203, 3, 25000);
+CREATE TABLE Accounts (
+  AccountID NUMBER PRIMARY KEY,
+  CustomerID NUMBER,
+  AccountType VARCHAR2(20),
+  Balance NUMBER,
+  LastModified DATE,
+  FOREIGN KEY (CustomerID) REFERENCES Customers(CustomerID)
+);
+
+CREATE TABLE Transactions (
+  TransactionID NUMBER PRIMARY KEY,
+  AccountID NUMBER,
+  TransactionDate DATE,
+  Amount NUMBER,
+  TransactionType VARCHAR2(10),
+  FOREIGN KEY (AccountID) REFERENCES Accounts(AccountID)
+);
+
+CREATE TABLE Loans (
+  LoanID NUMBER PRIMARY KEY,
+  CustomerID NUMBER,
+  LoanAmount NUMBER,
+  InterestRate NUMBER,
+  StartDate DATE,
+  EndDate DATE,
+  FOREIGN KEY (CustomerID) REFERENCES Customers(CustomerID)
+);
+
+CREATE TABLE Employees (
+  EmployeeID NUMBER PRIMARY KEY,
+  Name VARCHAR2(100),
+  Position VARCHAR2(50),
+  Salary NUMBER,
+  Department VARCHAR2(50),
+  HireDate DATE
+);
+
+INSERT INTO Customers (CustomerID, Name, DOB, Balance, LastModified) VALUES (1, 'John Doe', TO_DATE('1985-05-15', 'YYYY-MM-DD'), 1000, SYSDATE);
+INSERT INTO Customers (CustomerID, Name, DOB, Balance, LastModified) VALUES (2, 'Jane Smith', TO_DATE('1990-07-20', 'YYYY-MM-DD'), 1500, SYSDATE);
+
+INSERT INTO Accounts (AccountID, CustomerID, AccountType, Balance, LastModified) VALUES (1, 1, 'Savings', 1000, SYSDATE);
+INSERT INTO Accounts (AccountID, CustomerID, AccountType, Balance, LastModified) VALUES (2, 2, 'Checking', 1500, SYSDATE);
+
+INSERT INTO Transactions (TransactionID, AccountID, TransactionDate, Amount, TransactionType) VALUES (1, 1, SYSDATE, 200, 'Deposit');
+INSERT INTO Transactions (TransactionID, AccountID, TransactionDate, Amount, TransactionType) VALUES (2, 2, SYSDATE, 300, 'Withdrawal');
+
+INSERT INTO Loans (LoanID, CustomerID, LoanAmount, InterestRate, StartDate, EndDate) VALUES (1, 1, 5000, 5, SYSDATE, ADD_MONTHS(SYSDATE, 60));
+
+INSERT INTO Employees (EmployeeID, Name, Position, Salary, Department, HireDate) VALUES (1, 'Alice Johnson', 'Manager', 70000, 'HR', TO_DATE('2015-06-15', 'YYYY-MM-DD'));
+INSERT INTO Employees (EmployeeID, Name, Position, Salary, Department, HireDate) VALUES (2, 'Bob Brown', 'Developer', 60000, 'IT', TO_DATE('2017-03-20', 'YYYY-MM-DD'));
+
 COMMIT;
 
--- Create procedure
-CREATE OR REPLACE PROCEDURE ProcessMonthlyInterest IS
+CREATE OR REPLACE PROCEDURE ProcessMonthlyInterest AS
+  v_count NUMBER;
 BEGIN
-  FOR acc IN (SELECT AccountID, Balance FROM SAVINGS_ACCOUNTS) LOOP
-    UPDATE SAVINGS_ACCOUNTS
-    SET Balance = Balance + (Balance * 0.01)
-    WHERE AccountID = acc.AccountID;
-  END LOOP;
+  UPDATE Accounts
+  SET Balance = Balance + (Balance * 0.01),
+      LastModified = SYSDATE
+  WHERE AccountType = 'Savings';
+  v_count := SQL%ROWCOUNT;
+  DBMS_OUTPUT.PUT_LINE('Processed interest for ' || v_count || ' savings account(s).');
+  COMMIT;
 END;
 /
-
--- Execute procedure
 BEGIN
   ProcessMonthlyInterest;
 END;
 /
 
--- ===============================
--- SCENARIO 2: Bonus for Employees by Department
--- ===============================
-
--- Drop table if exists
-BEGIN
-  EXECUTE IMMEDIATE 'DROP TABLE EMPLOYEES';
-EXCEPTION
-  WHEN OTHERS THEN NULL;
-END;
-/
-
--- Create table
-CREATE TABLE EMPLOYEES (
-  EmployeeID   NUMBER PRIMARY KEY,
-  Name         VARCHAR2(100),
-  Department   VARCHAR2(50),
-  Salary       NUMBER
-);
-
--- Insert sample data
-INSERT INTO EMPLOYEES VALUES (1, 'Alice', 'HR', 50000);
-INSERT INTO EMPLOYEES VALUES (2, 'Bob', 'IT', 60000);
-INSERT INTO EMPLOYEES VALUES (3, 'Charlie', 'IT', 65000);
-INSERT INTO EMPLOYEES VALUES (4, 'Diana', 'HR', 55000);
-COMMIT;
-
--- Create procedure
 CREATE OR REPLACE PROCEDURE UpdateEmployeeBonus (
   p_department IN VARCHAR2,
-  p_bonus_pct  IN NUMBER
-) IS
+  p_bonus_percent IN NUMBER
+) AS
+  v_count NUMBER;
 BEGIN
-  UPDATE EMPLOYEES
-  SET Salary = Salary + (Salary * p_bonus_pct / 100)
+  UPDATE Employees
+  SET Salary = Salary + (Salary * p_bonus_percent / 100)
   WHERE Department = p_department;
+  v_count := SQL%ROWCOUNT;
+  DBMS_OUTPUT.PUT_LINE('Applied bonus to ' || v_count || ' employee(s) in department ' || p_department);
+  COMMIT;
 END;
 /
-
--- Execute procedure
 BEGIN
   UpdateEmployeeBonus('IT', 10);
 END;
 /
 
--- ===============================
--- SCENARIO 3: Fund Transfer Between Accounts
--- ===============================
-
--- Drop table if exists
-BEGIN
-  EXECUTE IMMEDIATE 'DROP TABLE BANK_ACCOUNTS';
-EXCEPTION
-  WHEN OTHERS THEN NULL;
-END;
-/
-
--- Create table
-CREATE TABLE BANK_ACCOUNTS (
-  AccountID   NUMBER PRIMARY KEY,
-  CustomerID  NUMBER,
-  Balance     NUMBER
-);
-
--- Insert sample data
-INSERT INTO BANK_ACCOUNTS VALUES (301, 1, 8000);
-INSERT INTO BANK_ACCOUNTS VALUES (302, 2, 3000);
-COMMIT;
-
--- Create procedure
 CREATE OR REPLACE PROCEDURE TransferFunds (
   p_from_account IN NUMBER,
-  p_to_account   IN NUMBER,
-  p_amount       IN NUMBER
-) IS
+  p_to_account IN NUMBER,
+  p_amount IN NUMBER
+) AS
   v_balance NUMBER;
 BEGIN
-  SELECT Balance INTO v_balance FROM BANK_ACCOUNTS WHERE AccountID = p_from_account;
-
+  SELECT Balance INTO v_balance
+  FROM Accounts
+  WHERE AccountID = p_from_account
+  FOR UPDATE;
   IF v_balance < p_amount THEN
-    RAISE_APPLICATION_ERROR(-20001, 'Insufficient balance.');
+    RAISE_APPLICATION_ERROR(-20001, 'Insufficient funds in source account');
   END IF;
-
-  -- Deduct from source
-  UPDATE BANK_ACCOUNTS
-  SET Balance = Balance - p_amount
+  UPDATE Accounts
+  SET Balance = Balance - p_amount,
+      LastModified = SYSDATE
   WHERE AccountID = p_from_account;
-
-  -- Add to destination
-  UPDATE BANK_ACCOUNTS
-  SET Balance = Balance + p_amount
+  UPDATE Accounts
+  SET Balance = Balance + p_amount,
+      LastModified = SYSDATE
   WHERE AccountID = p_to_account;
-
+  DBMS_OUTPUT.PUT_LINE('Transferred ' || p_amount || ' from account ' || p_from_account || ' to account ' || p_to_account);
   COMMIT;
 END;
 /
-
--- Execute procedure
 BEGIN
-  TransferFunds(301, 302, 2000);
+  TransferFunds(1, 2, 100);
 END;
 /
+
+SELECT * FROM Accounts;
+SELECT * FROM Employees;
