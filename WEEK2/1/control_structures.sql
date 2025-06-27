@@ -1,78 +1,148 @@
--- ============================
--- Cognizant Weekly Assessment
--- PL/SQL Control Structures
--- Name: [Your Name]
--- Date: [Add Date]
--- ============================
-
--- DROP existing tables (optional)
 BEGIN
-  EXECUTE IMMEDIATE 'DROP TABLE LOANS';
-  EXECUTE IMMEDIATE 'DROP TABLE CUSTOMERS';
-EXCEPTION
-  WHEN OTHERS THEN NULL;
-END;
+  EXECUTE IMMEDIATE 'DROP TABLE Transactions CASCADE CONSTRAINTS';
+EXCEPTION WHEN OTHERS THEN NULL; END;
+/
+BEGIN
+  EXECUTE IMMEDIATE 'DROP TABLE Accounts CASCADE CONSTRAINTS';
+EXCEPTION WHEN OTHERS THEN NULL; END;
+/
+BEGIN
+  EXECUTE IMMEDIATE 'DROP TABLE Loans CASCADE CONSTRAINTS';
+EXCEPTION WHEN OTHERS THEN NULL; END;
+/
+BEGIN
+  EXECUTE IMMEDIATE 'DROP TABLE Customers CASCADE CONSTRAINTS';
+EXCEPTION WHEN OTHERS THEN NULL; END;
+/
+BEGIN
+  EXECUTE IMMEDIATE 'DROP TABLE Employees CASCADE CONSTRAINTS';
+EXCEPTION WHEN OTHERS THEN NULL; END;
 /
 
--- CREATE TABLES
-CREATE TABLE CUSTOMERS (
-  CustomerID         NUMBER PRIMARY KEY,
-  Name               VARCHAR2(100),
-  Age                NUMBER,
-  Balance            NUMBER,
-  IsVIP              VARCHAR2(5),
-  LoanInterestRate   NUMBER
+CREATE TABLE Customers (
+  CustomerID NUMBER PRIMARY KEY,
+  Name VARCHAR2(100),
+  DOB DATE,
+  Balance NUMBER,
+  LastModified DATE,
+  IsVIP VARCHAR2(5)
 );
 
-CREATE TABLE LOANS (
-  LoanID     NUMBER PRIMARY KEY,
+CREATE TABLE Accounts (
+  AccountID NUMBER PRIMARY KEY,
   CustomerID NUMBER,
-  DueDate    DATE,
-  FOREIGN KEY (CustomerID) REFERENCES CUSTOMERS(CustomerID)
+  AccountType VARCHAR2(20),
+  Balance NUMBER,
+  LastModified DATE,
+  FOREIGN KEY (CustomerID) REFERENCES Customers(CustomerID)
 );
 
--- INSERT DATA
-INSERT INTO CUSTOMERS VALUES (1, 'John Doe', 65, 12000, 'FALSE', 9.5);
-INSERT INTO CUSTOMERS VALUES (2, 'Jane Smith', 45, 8000, 'FALSE', 10.0);
-INSERT INTO CUSTOMERS VALUES (3, 'Arun Kumar', 70, 15000, 'FALSE', 8.5);
+CREATE TABLE Transactions (
+  TransactionID NUMBER PRIMARY KEY,
+  AccountID NUMBER,
+  TransactionDate DATE,
+  Amount NUMBER,
+  TransactionType VARCHAR2(10),
+  FOREIGN KEY (AccountID) REFERENCES Accounts(AccountID)
+);
 
-INSERT INTO LOANS VALUES (101, 1, SYSDATE + 20);
-INSERT INTO LOANS VALUES (102, 2, SYSDATE + 40);
-INSERT INTO LOANS VALUES (103, 3, SYSDATE + 10);
+CREATE TABLE Loans (
+  LoanID NUMBER PRIMARY KEY,
+  CustomerID NUMBER,
+  LoanAmount NUMBER,
+  InterestRate NUMBER,
+  StartDate DATE,
+  EndDate DATE,
+  FOREIGN KEY (CustomerID) REFERENCES Customers(CustomerID)
+);
+
+CREATE TABLE Employees (
+  EmployeeID NUMBER PRIMARY KEY,
+  Name VARCHAR2(100),
+  Position VARCHAR2(50),
+  Salary NUMBER,
+  Department VARCHAR2(50),
+  HireDate DATE
+);
+
+INSERT INTO Customers (CustomerID, Name, DOB, Balance, LastModified)
+VALUES (1, 'John Doe', TO_DATE('1950-05-15', 'YYYY-MM-DD'), 1000, SYSDATE);
+
+INSERT INTO Customers (CustomerID, Name, DOB, Balance, LastModified)
+VALUES (2, 'Jane Smith', TO_DATE('1990-07-20', 'YYYY-MM-DD'), 1500, SYSDATE);
+
+INSERT INTO Accounts (AccountID, CustomerID, AccountType, Balance, LastModified)
+VALUES (1, 1, 'Savings', 1000, SYSDATE);
+
+INSERT INTO Accounts (AccountID, CustomerID, AccountType, Balance, LastModified)
+VALUES (2, 2, 'Checking', 1500, SYSDATE);
+
+INSERT INTO Transactions (TransactionID, AccountID, TransactionDate, Amount, TransactionType)
+VALUES (1, 1, SYSDATE, 200, 'Deposit');
+
+INSERT INTO Transactions (TransactionID, AccountID, TransactionDate, Amount, TransactionType)
+VALUES (2, 2, SYSDATE, 300, 'Withdrawal');
+
+INSERT INTO Loans (LoanID, CustomerID, LoanAmount, InterestRate, StartDate, EndDate)
+VALUES (1, 1, 5000, 5, SYSDATE, ADD_MONTHS(SYSDATE, 20));
+
+INSERT INTO Employees (EmployeeID, Name, Position, Salary, Department, HireDate)
+VALUES (1, 'Alice Johnson', 'Manager', 70000, 'HR', TO_DATE('2015-06-15', 'YYYY-MM-DD'));
+
+INSERT INTO Employees (EmployeeID, Name, Position, Salary, Department, HireDate)
+VALUES (2, 'Bob Brown', 'Developer', 60000, 'IT', TO_DATE('2017-03-20', 'YYYY-MM-DD'));
 
 COMMIT;
 
--- SCENARIO 1: Interest Discount
-BEGIN
-  FOR cust IN (SELECT * FROM CUSTOMERS WHERE Age > 60) LOOP
-    UPDATE CUSTOMERS
-    SET LoanInterestRate = LoanInterestRate - 1
-    WHERE CustomerID = cust.CustomerID;
-  END LOOP;
-  COMMIT;
-END;
-/
+UPDATE Customers SET Balance = 20000 WHERE CustomerID=2;
 
--- SCENARIO 2: Promote to VIP
-BEGIN
-  FOR cust IN (SELECT * FROM CUSTOMERS WHERE Balance > 10000) LOOP
-    UPDATE CUSTOMERS
-    SET IsVIP = 'TRUE'
-    WHERE CustomerID = cust.CustomerID;
-  END LOOP;
-  COMMIT;
-END;
-/
+INSERT INTO Loans (LoanID, CustomerID, LoanAmount, InterestRate, StartDate, EndDate)
+VALUES (2, 2, 3000, 6, SYSDATE, SYSDATE + 10);
 
--- SCENARIO 3: Loan Due Reminders
+COMMIT;
+
 BEGIN
-  FOR loan IN (
-    SELECT L.LoanID, C.Name, L.DueDate
-    FROM LOANS L
-    JOIN CUSTOMERS C ON L.CustomerID = C.CustomerID
-    WHERE L.DueDate <= SYSDATE + 30
+  FOR rec IN (
+    SELECT l.LoanID, l.InterestRate, c.DOB
+    FROM Loans l
+    JOIN Customers c ON l.CustomerID = c.CustomerID
   ) LOOP
-    DBMS_OUTPUT.PUT_LINE('Reminder: ' || loan.Name || ', your loan (ID: ' || loan.LoanID || ') is due on ' || TO_CHAR(loan.DueDate, 'DD-Mon-YYYY'));
+    IF (MONTHS_BETWEEN(SYSDATE, rec.DOB) / 12) > 60 THEN
+      UPDATE Loans
+      SET InterestRate = rec.InterestRate - 1
+      WHERE LoanID = rec.LoanID;
+    END IF;
+  END LOOP;
+  COMMIT;
+END;
+/
+
+BEGIN
+  FOR rec IN (SELECT CustomerID, Balance FROM Customers) LOOP
+    IF rec.Balance > 10000 THEN
+      UPDATE Customers
+      SET IsVIP = 'TRUE'
+      WHERE CustomerID = rec.CustomerID;
+    ELSE
+      UPDATE Customers
+      SET IsVIP = 'FALSE'
+      WHERE CustomerID = rec.CustomerID;
+    END IF;
+  END LOOP;
+  COMMIT;
+END;
+/
+
+BEGIN
+  FOR rec IN (
+    SELECT l.LoanID, l.CustomerID, c.Name, l.EndDate
+    FROM Loans l
+    JOIN Customers c ON l.CustomerID = c.CustomerID
+    WHERE l.EndDate BETWEEN SYSDATE AND SYSDATE + 30
+  ) LOOP
+    DBMS_OUTPUT.PUT_LINE('Reminder: LoanID ' || rec.LoanID ||
+                         ' for customer ' || rec.Name ||
+                         ' is due on ' || TO_CHAR(rec.EndDate, 'YYYY-MM-DD'));
   END LOOP;
 END;
 /
