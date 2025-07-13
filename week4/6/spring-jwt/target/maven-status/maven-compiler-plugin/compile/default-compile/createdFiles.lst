@@ -1,4 +1,0 @@
-com\cognizant\spring_jwt\controller\AuthenticationController.class
-com\cognizant\spring_jwt\config\SecurityConfig.class
-com\cognizant\spring_jwt\SpringJwtApplication.class
-com\cognizant\spring_jwt\util\JwtUtil.class
